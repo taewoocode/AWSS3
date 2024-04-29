@@ -25,12 +25,15 @@ public class StorageService {
     @Autowired
     private AmazonS3 s3Client;
 
-    public String uploadFile(MultipartFile file) {
-        File fileObj = convertMultiPartFileToFile(file);
-        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-        s3Client.putObject(new PutObjectRequest(bucketName, fileName, fileObj));
-        fileObj.delete();
-        return "File uploaded : " + fileName;
+    public String uploadFile(MultipartFile file, String fileName) {
+        try {
+            File fileObj = convertMultiPartFileToFile(file);
+            s3Client.putObject(new PutObjectRequest(bucketName, fileName, fileObj));
+            fileObj.delete();
+            return fileName;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload file: " + e.getMessage());
+        }
     }
 
     public byte[] downloadFile(String fileName) {
