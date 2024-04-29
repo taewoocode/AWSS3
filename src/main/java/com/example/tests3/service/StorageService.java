@@ -1,9 +1,7 @@
 package com.example.tests3.service;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import com.amazonaws.services.s3.model.*;
 import com.amazonaws.util.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +12,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @Slf4j
@@ -61,5 +61,20 @@ public class StorageService {
             log.error("Error converting multipartFile to file", e);
         }
         return convertedFile;
+    }
+
+    //fileList확인기능추가
+    public List<String> listFiles() {
+        List<String> fileList = new ArrayList<>();
+
+        ListObjectsRequest listObjectsRequest = new ListObjectsRequest()
+                .withBucketName(bucketName);
+        ObjectListing objectListing = s3Client.listObjects(listObjectsRequest);
+
+        for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+            fileList.add(objectSummary.getKey());
+        }
+
+        return fileList;
     }
 }

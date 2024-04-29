@@ -8,6 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/file")
 public class StorageController {
@@ -36,4 +38,13 @@ public class StorageController {
     public ResponseEntity<String> deleteFile(@PathVariable String fileName) {
         return new ResponseEntity<>(service.deleteFile(fileName), HttpStatus.OK);
     }
+
+    //파일list조회
+    @GetMapping("/list")
+    public ResponseEntity<List<String>> listFiles() {
+        List<String> fileList = service.listFiles();
+        return new ResponseEntity<>(fileList, HttpStatus.OK);
+    }
+
+
 }
