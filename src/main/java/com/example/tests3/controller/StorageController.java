@@ -1,6 +1,7 @@
 package com.example.tests3.controller;
 
 import com.example.tests3.service.StorageService;
+import com.example.tests3.service.StorageService.FileDetail;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/file")
 public class StorageController {
@@ -39,12 +41,9 @@ public class StorageController {
         return new ResponseEntity<>(service.deleteFile(fileName), HttpStatus.OK);
     }
 
-    //파일list조회
     @GetMapping("/list")
-    public ResponseEntity<List<String>> listFiles() {
-        List<String> fileList = service.listFiles();
+    public ResponseEntity<List<FileDetail>> listFiles() {
+        List<FileDetail> fileList = service.listFiles();
         return new ResponseEntity<>(fileList, HttpStatus.OK);
     }
-
-
 }

@@ -33,25 +33,21 @@ public class StorageService {
         return "File uploaded : " + fileName;
     }
 
-
     public byte[] downloadFile(String fileName) {
         S3Object s3Object = s3Client.getObject(bucketName, fileName);
         S3ObjectInputStream inputStream = s3Object.getObjectContent();
         try {
-            byte[] content = IOUtils.toByteArray(inputStream);
-            return content;
+            return IOUtils.toByteArray(inputStream);
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Error downloading file", e);
+            return null;
         }
-        return null;
     }
-
 
     public String deleteFile(String fileName) {
         s3Client.deleteObject(bucketName, fileName);
         return fileName + " removed ...";
     }
-
 
     private File convertMultiPartFileToFile(MultipartFile file) {
         File convertedFile = new File(file.getOriginalFilename());
@@ -63,18 +59,55 @@ public class StorageService {
         return convertedFile;
     }
 
-    //fileList확인기능추가
-    public List<String> listFiles() {
-        List<String> fileList = new ArrayList<>();
-
+    public List<FileDetail> listFiles() {
+        List<FileDetail> fileList = new ArrayList<>();
         ListObjectsRequest listObjectsRequest = new ListObjectsRequest()
                 .withBucketName(bucketName);
-        ObjectListing objectListing = s3Client.listObjects(listObjectsRequest);
+        ObjectListing objectListing;
 
-        for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
-            fileList.add(objectSummary.getKey());
-        }
+        do {
+            objectListing = s3Client.listObjects(listObjectsRequest);
+            for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+                fileList.add(new FileDetail(
+                        objectSummary.getKey(),
+                        objectSummary.getSize(),
+                        objectSummary.getLastModified(),
+                        objectSummary.getStorageClass() // 스토리지 클래스 정보 추가
+                ));
+            }
+            listObjectsRequest.setMarker(objectListing.getNextMarker());
+        } while (objectListing.isTruncated()); // Handle pagination
 
         return fileList;
+    }
+
+    public static class FileDetail {
+        private String key;
+        private long size;
+        private java.util.Date lastModified;
+        private String storageClass; // 스토리지 클래스를 저장하기 위한 필드 추가
+
+        public FileDetail(String key, long size, java.util.Date lastModified, String storageClass) {
+            this.key = key;
+            this.size = size;
+            this.lastModified = lastModified;
+            this.storageClass = storageClass;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public long getSize() {
+            return size;
+        }
+
+        public java.util.Date getLastModified() {
+            return lastModified;
+        }
+
+        public String getStorageClass() {
+            return storageClass; // 스토리지 클래스를 반환하는 메소드 추가
+        }
     }
 }
