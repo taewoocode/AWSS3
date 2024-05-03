@@ -3,6 +3,7 @@ package com.example.tests3.controller;
 import com.example.tests3.entity.User;
 import com.example.tests3.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,6 +15,18 @@ public class UserController {
     @PostMapping("/user")
     public User saveUser(@RequestBody User user) {
         return this.userRepository.save(user);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<String> loginUser(@RequestBody User loginRequest) {
+        User user = userRepository.findUserByEmail(loginRequest.getEmail());
+        if (user != null && user.getPassword().equals(loginRequest.getPassword())) {
+            // 로그인 성공
+            return ResponseEntity.ok("Login successful. User ID: " + user.getUserId());
+        } else {
+            // 로그인 실패
+            return ResponseEntity.badRequest().body("오류발생!");
+        }
     }
 
     @GetMapping("/user/{id}")
