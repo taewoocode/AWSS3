@@ -34,7 +34,7 @@ dependencies {
     implementation 'com.amazonaws:aws-java-sdk-dynamodb:1.12.85'
     implementation 'com.github.derjust:spring-data-dynamodb:5.0.4'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-
+    implementation 'io.jsonwebtoken:jjwt:0.9.1'
 
 }
 

@@ -28,4 +28,7 @@ public class User {
     @DynamoDBAttribute
     private String email;
 
+    @DynamoDBAttribute
+    private String s3_bucket_uri;
+
 }

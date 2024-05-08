@@ -2,6 +2,8 @@ package com.example.tests3.controller;
 
 import com.example.tests3.entity.User;
 import com.example.tests3.repository.UserRepository;
+import com.example.tests3.service.StorageService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +13,9 @@ public class UserController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private StorageService storageService;
 
     @PostMapping("/user")
     public User saveUser(@RequestBody User user) {
@@ -22,6 +27,7 @@ public class UserController {
         User user = userRepository.findUserByEmail(loginRequest.getEmail());
         if (user != null && user.getPassword().equals(loginRequest.getPassword())) {
             // 로그인 성공
+            storageService.loginAndSetBucketName(loginRequest.getEmail());
             return ResponseEntity.ok("Login successful. User ID: " + user.getUserId());
         } else {
             // 로그인 실패

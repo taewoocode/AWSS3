@@ -1,11 +1,22 @@
 package com.example.tests3.service;
 
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.util.IOUtils;
+import com.example.tests3.entity.User;
+import com.example.tests3.repository.UserRepository;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -13,17 +24,42 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
 public class StorageService {
 
-    @Value("${application.bucket.name}")
     private String bucketName;
+
 
     @Autowired
     private AmazonS3 s3Client;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    public void loginAndSetBucketName(String email) {
+        User user = userRepository.findUserByEmail(email);
+        if (user == null) {
+            throw new IllegalStateException("No user found with the provided email.");
+        }
+        this.bucketName = extractBucketNameFromURI(user.getS3_bucket_uri());
+    }
+
+    private String extractBucketNameFromURI(String s3Uri) {
+        if (s3Uri != null && s3Uri.startsWith("s3://")) {
+            String pathWithoutScheme = s3Uri.substring(5); // Remove 's3://'
+            int firstSlashIndex = pathWithoutScheme.indexOf('/');
+            if (firstSlashIndex != -1) {
+                return pathWithoutScheme.substring(0, firstSlashIndex);
+            }
+            return pathWithoutScheme; // In case the URI does not have a path or slash.
+        }
+        throw new IllegalArgumentException("Invalid S3 URI: " + s3Uri);
+    }
 
     public String uploadFile(MultipartFile file, String fileName) {
         try {
@@ -37,9 +73,8 @@ public class StorageService {
     }
 
     public byte[] downloadFile(String fileName) {
-        S3Object s3Object = s3Client.getObject(bucketName, fileName);
-        S3ObjectInputStream inputStream = s3Object.getObjectContent();
-        try {
+        S3Object s3Object = s3Client.getObject(new GetObjectRequest(bucketName, fileName));
+        try (S3ObjectInputStream inputStream = s3Object.getObjectContent()) {
             return IOUtils.toByteArray(inputStream);
         } catch (IOException e) {
             log.error("Error downloading file", e);
@@ -48,7 +83,7 @@ public class StorageService {
     }
 
     public String deleteFile(String fileName) {
-        s3Client.deleteObject(bucketName, fileName);
+        s3Client.deleteObject(new DeleteObjectRequest(bucketName, fileName));
         return fileName + " removed ...";
     }
 
@@ -64,8 +99,7 @@ public class StorageService {
 
     public List<FileDetail> listFiles() {
         List<FileDetail> fileList = new ArrayList<>();
-        ListObjectsRequest listObjectsRequest = new ListObjectsRequest()
-                .withBucketName(bucketName);
+        ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(bucketName);
         ObjectListing objectListing;
 
         do {
@@ -75,11 +109,10 @@ public class StorageService {
                         objectSummary.getKey(),
                         objectSummary.getSize(),
                         objectSummary.getLastModified(),
-                        objectSummary.getStorageClass() // 스토리지 클래스 정보 추가
-                ));
+                        objectSummary.getStorageClass()));
             }
             listObjectsRequest.setMarker(objectListing.getNextMarker());
-        } while (objectListing.isTruncated()); // Handle pagination
+        } while (objectListing.isTruncated());
 
         return fileList;
     }
@@ -88,7 +121,7 @@ public class StorageService {
         private String key;
         private long size;
         private java.util.Date lastModified;
-        private String storageClass; // 스토리지 클래스를 저장하기 위한 필드 추가
+        private String storageClass;
 
         public FileDetail(String key, long size, java.util.Date lastModified, String storageClass) {
             this.key = key;
@@ -110,7 +143,7 @@ public class StorageService {
         }
 
         public String getStorageClass() {
-            return storageClass; // 스토리지 클래스를 반환하는 메소드 추가
+            return storageClass;
         }
     }
 }
