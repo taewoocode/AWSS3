@@ -17,6 +17,11 @@ public class UserController {
     @Autowired
     private StorageService storageService;
 
+    @GetMapping("/")
+    public String test() {
+        return "Server Running!";
+    }
+
     @PostMapping("/user")
     public User saveUser(@RequestBody User user) {
         return this.userRepository.save(user);
