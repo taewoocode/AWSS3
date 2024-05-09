@@ -17,14 +17,13 @@ import java.util.Arrays;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    // CORS 설정
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("*"));
+        configuration.setAllowedOriginPatterns(Arrays.asList("*")); // 모든 오리진 허용
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(true); // 쿠키/인증 정보 허용 설정
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
@@ -34,12 +33,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(Customizer.withDefaults()) // CORS 적용
-            .csrf(AbstractHttpConfigurer::disable) // CSRF 비활성화
-            .authorizeRequests(auth -> auth
-                .anyRequest().permitAll() // 모든 요청에 대해 접근 허용
-            );
-        
+                .cors(Customizer.withDefaults()) // CORS 적용
+                .csrf(AbstractHttpConfigurer::disable) // CSRF 비활성화
+                .authorizeRequests(auth -> auth
+                        .anyRequest().permitAll() // 모든 요청에 대해 접근 허용
+                );
+
         return http.build();
     }
 }
