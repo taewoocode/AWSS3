@@ -1,39 +1,25 @@
 package com.example.tests3.service;
 
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.util.IOUtils;
 import com.example.tests3.entity.User;
 import com.example.tests3.repository.UserRepository;
 
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Component;
-
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Slf4j
 public class StorageService {
 
     private String bucketName;
-
 
     @Autowired
     private AmazonS3 s3Client;
@@ -61,14 +47,39 @@ public class StorageService {
         throw new IllegalArgumentException("Invalid S3 URI: " + s3Uri);
     }
 
-    public String uploadFile(MultipartFile file, String fileName) {
+    public String uploadChunk(MultipartFile file, String fileName, int chunkIndex, int totalChunks) {
         try {
-            File fileObj = convertMultiPartFileToFile(file);
-            s3Client.putObject(new PutObjectRequest(bucketName, fileName, fileObj));
-            fileObj.delete();
+            // Create a temporary directory to store chunk files
+            File tempDir = new File(System.getProperty("java.io.tmpdir"), "chunks");
+            if (!tempDir.exists()) {
+                tempDir.mkdirs();
+            }
+
+            // Save the chunk to a temporary file
+            File chunkFile = new File(tempDir, fileName + "-" + chunkIndex);
+            file.transferTo(chunkFile);
+
+            // If all chunks are uploaded, merge them into a single file and upload to S3
+            if (chunkIndex == totalChunks - 1) {
+                File mergedFile = new File(tempDir, fileName);
+                try (FileOutputStream fos = new FileOutputStream(mergedFile);
+                     BufferedOutputStream mergingStream = new BufferedOutputStream(fos)) {
+                    for (int i = 0; i < totalChunks; i++) {
+                        File chunk = new File(tempDir, fileName + "-" + i);
+                        try (FileInputStream fis = new FileInputStream(chunk);
+                             BufferedInputStream in = new BufferedInputStream(fis)) {
+                            IOUtils.copy(in, mergingStream);
+                        }
+                        chunk.delete();
+                    }
+                }
+                s3Client.putObject(new PutObjectRequest(bucketName, fileName, mergedFile));
+                mergedFile.delete();
+            }
+
             return fileName;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to upload file: " + e.getMessage());
+            throw new RuntimeException("Failed to upload chunk: " + e.getMessage(), e);
         }
     }
 
@@ -85,16 +96,6 @@ public class StorageService {
     public String deleteFile(String fileName) {
         s3Client.deleteObject(new DeleteObjectRequest(bucketName, fileName));
         return fileName + " removed ...";
-    }
-
-    private File convertMultiPartFileToFile(MultipartFile file) {
-        File convertedFile = new File(file.getOriginalFilename());
-        try (FileOutputStream fos = new FileOutputStream(convertedFile)) {
-            fos.write(file.getBytes());
-        } catch (IOException e) {
-            log.error("Error converting multipartFile to file", e);
-        }
-        return convertedFile;
     }
 
     public List<FileDetail> listFiles() {
