@@ -102,7 +102,7 @@ public class StorageService {
         List<FileDetail> fileList = new ArrayList<>();
         ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(bucketName);
         ObjectListing objectListing;
-
+    
         do {
             objectListing = s3Client.listObjects(listObjectsRequest);
             for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
@@ -114,7 +114,7 @@ public class StorageService {
             }
             listObjectsRequest.setMarker(objectListing.getNextMarker());
         } while (objectListing.isTruncated());
-
+    
         return fileList;
     }
 
