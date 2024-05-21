@@ -5,6 +5,8 @@ import com.amazonaws.services.s3.model.*;
 import com.amazonaws.util.IOUtils;
 import com.example.tests3.entity.User;
 import com.example.tests3.repository.UserRepository;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,11 +65,11 @@ public class StorageService {
             if (chunkIndex == totalChunks - 1) {
                 File mergedFile = new File(tempDir, fileName);
                 try (FileOutputStream fos = new FileOutputStream(mergedFile);
-                     BufferedOutputStream mergingStream = new BufferedOutputStream(fos)) {
+                        BufferedOutputStream mergingStream = new BufferedOutputStream(fos)) {
                     for (int i = 0; i < totalChunks; i++) {
                         File chunk = new File(tempDir, fileName + "-" + i);
                         try (FileInputStream fis = new FileInputStream(chunk);
-                             BufferedInputStream in = new BufferedInputStream(fis)) {
+                                BufferedInputStream in = new BufferedInputStream(fis)) {
                             IOUtils.copy(in, mergingStream);
                         }
                         chunk.delete();
@@ -102,7 +104,7 @@ public class StorageService {
         List<FileDetail> fileList = new ArrayList<>();
         ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(bucketName);
         ObjectListing objectListing;
-    
+
         do {
             objectListing = s3Client.listObjects(listObjectsRequest);
             for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
@@ -114,14 +116,22 @@ public class StorageService {
             }
             listObjectsRequest.setMarker(objectListing.getNextMarker());
         } while (objectListing.isTruncated());
-    
+
         return fileList;
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class FileDetail {
+        @JsonProperty("key")
         private String key;
+
+        @JsonProperty("size")
         private long size;
+
+        @JsonProperty("lastModified")
         private java.util.Date lastModified;
+
+        @JsonProperty("storageClass")
         private String storageClass;
 
         public FileDetail(String key, long size, java.util.Date lastModified, String storageClass) {
@@ -131,6 +141,7 @@ public class StorageService {
             this.storageClass = storageClass;
         }
 
+        // Getters and setters (optional)
         public String getKey() {
             return key;
         }

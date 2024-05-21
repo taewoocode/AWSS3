@@ -26,8 +26,3 @@ spring:
 
 server:
   port: 9090
-  ssl:
-    key-store: classpath:keystore.p12
-    key-store-type: PKCS12
-    key-store-password: test123
-    key-alias: spring
