@@ -1,26 +1,41 @@
 pipeline {
     agent any
     stages {
-        stage('git scm update') {
+        stage('Git SCM Update') {
             steps {
-                git url: 'https://github.com/taewoocode/AWSS3', branch: 'main'
+                git branch: 'main', url: 'https://github.com/taewoocode/AWSS3'
             }
         }
-        stage('docker build and push') {
+        stage('Docker Build and Push') {
             steps {
-                sh '''
-                sudo docker build -t sorrykim/backup-backend:latest .
-                sudo docker push sorrykim/backup-backend:latest
-                '''
+                script {
+                    def dockerImage = 'sorrykim/backup-backend:latest'
+                    sh "docker build -t $dockerImage ."
+                    sh "docker push $dockerImage"
+                }
             }
         }
-        stage('deploy k8s') {
+        stage('Deploy to Kubernetes') {
             steps {
-                sh '''
-                sudo kubectl create deploy testpipeline --image=sorrykim/backup-backend:latest
-                sudo kubectl expose deploy testpipeline --type=NodePort --port=8081 --target-port=80 --name=testpipeline-svc
-                '''
+                script {
+                    def deploymentName = 'testpipeline'
+                    def imageName = 'sorrykim/backup-backend:latest'
+                    sh "kubectl create deployment $deploymentName --image=$imageName"
+                    sh "kubectl expose deployment $deploymentName --type=NodePort --port=8081 --target-port=80 --name=${deploymentName}-svc"
+                }
             }
+        }
+    }
+    post {
+        always {
+            echo 'Cleaning up...'
+            sh 'docker system prune -af'
+        }
+        success {
+            echo 'Deployment successful!'
+        }
+        failure {
+            echo 'Deployment failed!'
         }
     }
 }
