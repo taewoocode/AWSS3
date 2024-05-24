@@ -29,7 +29,6 @@ public class SecurityConfig {
         return source;
     }
 
-    // 보안 필터 체인 정의
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http

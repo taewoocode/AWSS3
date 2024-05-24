@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
+import java.net.URLDecoder;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,43 +52,65 @@ public class StorageService {
     }
 
     public String uploadChunk(MultipartFile file, String fileName, int chunkIndex, int totalChunks) {
+        File tempDir = null;
+        File chunkFile = null;
+        File mergedFile = null;
         try {
             // Create a temporary directory to store chunk files
-            File tempDir = new File(System.getProperty("java.io.tmpdir"), "chunks");
+            tempDir = new File(System.getProperty("java.io.tmpdir"), "chunks");
             if (!tempDir.exists()) {
                 tempDir.mkdirs();
             }
 
+            // Decode the file name to handle URL encoded characters
+            String decodedFileName = URLDecoder.decode(fileName, StandardCharsets.UTF_8.toString());
+            chunkFile = new File(tempDir, decodedFileName + "-" + chunkIndex);
+            log.info("Saving chunk to file: " + chunkFile.getAbsolutePath());
+
             // Save the chunk to a temporary file
-            File chunkFile = new File(tempDir, fileName + "-" + chunkIndex);
             file.transferTo(chunkFile);
+            log.info("Chunk saved: " + chunkFile.exists());
 
             // If all chunks are uploaded, merge them into a single file and upload to S3
             if (chunkIndex == totalChunks - 1) {
-                File mergedFile = new File(tempDir, fileName);
+                mergedFile = new File(tempDir, decodedFileName);
                 try (FileOutputStream fos = new FileOutputStream(mergedFile);
-                        BufferedOutputStream mergingStream = new BufferedOutputStream(fos)) {
+                     BufferedOutputStream mergingStream = new BufferedOutputStream(fos)) {
                     for (int i = 0; i < totalChunks; i++) {
-                        File chunk = new File(tempDir, fileName + "-" + i);
+                        File chunk = new File(tempDir, decodedFileName + "-" + i);
+                        if (!chunk.exists()) {
+                            log.error("Chunk file not found: " + chunk.getAbsolutePath());
+                            throw new FileNotFoundException("Chunk file not found: " + chunk.getAbsolutePath());
+                        }
+                        log.info("Merging chunk: " + chunk.getAbsolutePath());
                         try (FileInputStream fis = new FileInputStream(chunk);
-                                BufferedInputStream in = new BufferedInputStream(fis)) {
+                             BufferedInputStream in = new BufferedInputStream(fis)) {
                             IOUtils.copy(in, mergingStream);
                         }
                         chunk.delete();
                     }
                 }
-                s3Client.putObject(new PutObjectRequest(bucketName, fileName, mergedFile));
+
+                // Upload the merged file to S3
+                log.info("Uploading merged file to S3: " + mergedFile.getAbsolutePath());
+                try (InputStream inputStream = new FileInputStream(mergedFile)) {
+                    ObjectMetadata metadata = new ObjectMetadata();
+                    metadata.setContentLength(mergedFile.length());
+                    s3Client.putObject(new PutObjectRequest(bucketName, decodedFileName, inputStream, metadata));
+                }
+
+                log.info("File uploaded to S3: " + mergedFile.getAbsolutePath());
                 mergedFile.delete();
             }
-
-            return fileName;
+            return "File uploaded successfully";
         } catch (Exception e) {
+            log.error("Failed to upload chunk: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to upload chunk: " + e.getMessage(), e);
         }
     }
 
     public byte[] downloadFile(String fileName) {
-        S3Object s3Object = s3Client.getObject(new GetObjectRequest(bucketName, fileName));
+        S3Object s3Object = s3Client.getObject(bucketName, fileName);
         try (S3ObjectInputStream inputStream = s3Object.getObjectContent()) {
             return IOUtils.toByteArray(inputStream);
         } catch (IOException e) {
@@ -96,13 +120,13 @@ public class StorageService {
     }
 
     public String deleteFile(String fileName) {
-        s3Client.deleteObject(new DeleteObjectRequest(bucketName, fileName));
+        s3Client.deleteObject(bucketName, fileName);
         return fileName + " removed ...";
     }
 
     public List<FileDetail> listFiles() {
         List<FileDetail> fileList = new ArrayList<>();
-        ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(bucketName);
+        var listObjectsRequest = new ListObjectsRequest().withBucketName(bucketName);
         ObjectListing objectListing;
 
         do {

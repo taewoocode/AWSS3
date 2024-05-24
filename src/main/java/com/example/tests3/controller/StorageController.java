@@ -20,16 +20,16 @@ public class StorageController {
     private StorageService service;
 
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadChunk(
-            @RequestParam("file") MultipartFile file,
+    public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file,
             @RequestParam("fileName") String fileName,
             @RequestParam("chunkIndex") int chunkIndex,
             @RequestParam("totalChunks") int totalChunks) {
         try {
-            String uploadedFileName = service.uploadChunk(file, fileName, chunkIndex, totalChunks);
-            return new ResponseEntity<>("Chunk uploaded successfully: " + uploadedFileName, HttpStatus.OK);
+            String result = service.uploadChunk(file, fileName, chunkIndex, totalChunks);
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return new ResponseEntity<>("Failed to upload chunk: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to upload file: " + e.getMessage());
         }
     }
 
