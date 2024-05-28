@@ -55,4 +55,15 @@ public class StorageController {
         List<FileDetail> fileList = service.listFiles();
         return new ResponseEntity<>(fileList, HttpStatus.OK);
     }
+
+    @PostMapping("/restore/{fileKey}")
+    public ResponseEntity<String> restoreFile(@PathVariable("fileKey") String fileKey) {
+        try {
+            String result = service.invokeRestoreLambda(fileKey);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to restore file: " + e.getMessage());
+        }
+    }
 }

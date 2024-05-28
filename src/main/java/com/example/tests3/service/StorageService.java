@@ -1,5 +1,10 @@
 package com.example.tests3.service;
 
+import com.amazonaws.services.lambda.AWSLambda;
+import com.amazonaws.services.lambda.AWSLambdaClientBuilder;
+import com.amazonaws.services.lambda.model.AWSLambdaException;
+import com.amazonaws.services.lambda.model.InvokeRequest;
+import com.amazonaws.services.lambda.model.InvokeResult;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.util.IOUtils;
@@ -30,6 +35,12 @@ public class StorageService {
 
     @Autowired
     private UserRepository userRepository;
+
+    private final AWSLambda awsLambda;
+
+    public StorageService() {
+        this.awsLambda = AWSLambdaClientBuilder.defaultClient();
+    }
 
     public void loginAndSetBucketName(String email) {
         User user = userRepository.findUserByEmail(email);
@@ -75,7 +86,7 @@ public class StorageService {
             if (chunkIndex == totalChunks - 1) {
                 mergedFile = new File(tempDir, decodedFileName);
                 try (FileOutputStream fos = new FileOutputStream(mergedFile);
-                     BufferedOutputStream mergingStream = new BufferedOutputStream(fos)) {
+                        BufferedOutputStream mergingStream = new BufferedOutputStream(fos)) {
                     for (int i = 0; i < totalChunks; i++) {
                         File chunk = new File(tempDir, decodedFileName + "-" + i);
                         if (!chunk.exists()) {
@@ -84,7 +95,7 @@ public class StorageService {
                         }
                         log.info("Merging chunk: " + chunk.getAbsolutePath());
                         try (FileInputStream fis = new FileInputStream(chunk);
-                             BufferedInputStream in = new BufferedInputStream(fis)) {
+                                BufferedInputStream in = new BufferedInputStream(fis)) {
                             IOUtils.copy(in, mergingStream);
                         }
                         chunk.delete();
@@ -124,6 +135,21 @@ public class StorageService {
         return fileName + " removed ...";
     }
 
+    public List<String> listUserFiles(String email) {
+        loginAndSetBucketName(email); // 사용자의 버킷 설정
+        List<String> fileList = new ArrayList<>();
+        ListObjectsV2Request req = new ListObjectsV2Request().withBucketName(bucketName);
+        ListObjectsV2Result result;
+        do {
+            result = s3Client.listObjectsV2(req);
+            for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
+                fileList.add(objectSummary.getKey());
+            }
+            req.setContinuationToken(result.getNextContinuationToken());
+        } while (result.isTruncated());
+        return fileList;
+    }
+
     public List<FileDetail> listFiles() {
         List<FileDetail> fileList = new ArrayList<>();
         var listObjectsRequest = new ListObjectsRequest().withBucketName(bucketName);
@@ -142,6 +168,24 @@ public class StorageService {
         } while (objectListing.isTruncated());
 
         return fileList;
+    }
+
+    public String invokeRestoreLambda(String fileName) {
+        try {
+            String payload = String.format(
+                    "{\"Records\":[{\"s3\":{\"bucket\":{\"name\":\"%s\"},\"object\":{\"key\":\"%s\"}}}]}",
+                    bucketName, fileName);
+            InvokeRequest invokeRequest = new InvokeRequest()
+                    .withFunctionName("Restore-object-request")
+                    .withPayload(payload);
+
+            InvokeResult invokeResult = awsLambda.invoke(invokeRequest);
+
+            String result = new String(invokeResult.getPayload().array(), StandardCharsets.UTF_8);
+            return result;
+        } catch (AWSLambdaException e) {
+            throw new RuntimeException("Failed to invoke Lambda function: " + e.getMessage(), e);
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
